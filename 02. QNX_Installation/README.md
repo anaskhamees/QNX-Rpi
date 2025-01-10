@@ -109,7 +109,7 @@ To develop Apps on QNX for a particular board, you will need to add the relevant
 
 The SDP provides everything you need in order to build your own QNX system. How-ever, to get you up and running quickly with Raspberry Pi, we will use a pre-defined image that you can just copy to an SD card. 
 
-**1.4. Install QNX SDP 8.0  Image for Raspberry Pi 4**
+**1.4. Install QNX SDP 8.0  Image for Raspberry Pi 4** [2,4,8 G RAM only] 
 
 Open QNX Software Center, and install the **“QNX® SDP 8.0 Quick Start image for Raspberry Pi 4”** package.
 
@@ -199,3 +199,93 @@ Once the image has been copied to the SD card and remains connected to your comp
 
 ### 3. Booting the Raspberry Pi 4 
 
+- Unplug the SD card from computer and connect it to RPI4.
+
+- Connect HDMI display, micro-HDMI connector and a USB keyboard Only required
+  if you want to connect to the system with a keyboard and a display.
+
+- I use Rpi Touch Screen 7 inch
+
+- Connect keyboard and mouse to play with the system.
+
+  ![image-20250110180920744](README.assets/image-20250110180920744.png)
+
+- USB-TTL converter Only required for troubleshooting the system over a serial
+  console.
+
+#### 3.1. Welcome Screen
+
+- The following screen will appears after RPI4 booting , Press the power icon to open the terminal
+
+![qnxWelcome](README.assets/qnxWelcome.jpeg)
+
+- QNX Terminal 
+
+  ![qnxTerminal](README.assets/qnxTerminal.jpeg)
+
+I login in the first time using :
+
+- **login username: root**
+- **password : root**
+
+>If **root** did not work. You can log in as either **qnxuser** or **root** and execute shell
+>commands.
+
+After you login successfully , the following terminal will appear
+
+![loginqnx](README.assets/loginqnx.jpeg)
+
+#### 3.2. Let's navigate to QNX rpi system
+
+- QNX-RPI root file system
+
+  ![qnxrootfs](README.assets/qnxrootfs.jpeg)
+
+- QNX-RPI users
+
+  ![qnxusers](README.assets/qnxusers.jpeg)
+
+> I will use **qnxuser** as qnxpi user because **root access over SSH is disabled by default. **
+>
+> ![image-20250110220054673](README.assets/image-20250110220054673.png)
+>
+> So, Make sure you update these passwords [**password of qnxuser**] the first time you log in. Passwords can be changed using the **passwd** shell command. 
+
+- Make password for `qnxuser` user 
+
+  ```bash
+  passwd qnxuser
+  ```
+
+  
+
+![passqnx](README.assets/passqnx.jpeg)
+
+
+
+### 4. SSH Connection between computer (host machine) and QNX-RPI (target machine)
+
+- open the terminal on host machine (computer)
+
+  ```bash
+  ssh qnxuser@qnxpi.local
+  ```
+
+  ![image-20250110220558808](README.assets/image-20250110220558808.png)
+
+
+
+>**How `qnxpi.local` Works** :
+>
+>1. **Hostname Configuration on QNX RPI**:
+>   - The hostname `qnxpi` is set in the file `qnx_config.txt` on the Raspberry Pi's SD card.
+>   - By default, the full name becomes `qnxpi.local` for mDNS.
+>2. **mDNS Advertisement**:
+>   - The QNX system runs a service (similar to `avahi-daemon` on Linux or `Bonjour` on macOS/Windows) that broadcasts its hostname (`qnxpi.local`) and IP address to other devices on the same local network.
+>3. **Your Ubuntu System Resolves the Name**:
+>   - If `avahi-daemon` or a similar mDNS service is running on your Ubuntu system, it listens for mDNS advertisements and maps `qnxpi.local` to the advertised IP address.
+>   - This allows you to refer to the RPI by `qnxpi.local` without knowing its actual IP address.
+
+![image-20250110220813284](README.assets/image-20250110220813284.png)
+
+Now, I have the full control of the QNX on RPI target from my host computer
