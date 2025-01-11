@@ -235,15 +235,11 @@ A **process** in QNX is a running instance of a program, similar to processes in
 - **Application Threads:**
   - Threads in the `io-sock` process are waiting on condition variables or semaphores for events like socket I/O.
 
+-------------------
 
-
-### **Your Case:**
+**Example**
 
 ```
-bash
-
-
-Copy code
 692246   3 proc/boot/io-usb-otg          10r CONDVAR        (0x0)
 ```
 
