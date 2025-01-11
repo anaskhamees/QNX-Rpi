@@ -176,7 +176,7 @@ The kernel is the core of an operating system that acts as a bridge between the 
   >  - Multiple processes to coexist without directly interfering with each other.
   >  - Isolation and security, as one process cannot access another's memory directly.
   >
-  >  --------
+  > --------
   >
   >##### 7.1.2.2. Paging
   >
@@ -439,6 +439,32 @@ In a microkernel architecture, only essential services like inter-process commun
 4. **File Server**:
    - **Role**: Manages file-related operations like reading, writing, opening, and closing files.
    - It runs in user space and uses IPC to communicate with the kernel for hardware access or resource management.
+
+**Communication Flow**
+
+1. **Application Request**:
+   - A user application makes a request (e.g., to read a file or access network data).
+   - The application uses the IPC interface provided by the kernel (e.g., a system call or an IPC library).
+2. **Kernel Mediation**:
+   - The kernel receives the request, identifies the target service, and forwards the message.
+   - It may involve copying data between processes or setting up shared memory access.
+3. **Service Response**:
+   - The system service processes the request (e.g., fetches file data).
+   - The service sends a response back to the application via the kernel.
+
+**Examples in Practice**
+
+**1. File System Example**
+
+- A user application wants to read a file:
+  1. The application sends an IPC request to the **file system server**.
+  2. The file system server reads the file data (possibly involving a disk driver server) and sends the data back via IPC.
+
+**2. Network Communication Example**
+
+- A web browser application communicates with the network protocol stack server:
+  1. The browser sends a request to the network server to fetch a webpage.
+  2. The network server processes the request, communicates with the hardware through a device driver server, and returns the response.
 
 --------------
 
