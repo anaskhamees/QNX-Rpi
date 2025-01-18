@@ -262,3 +262,381 @@ A **process** in QNX is a running instance of a program, similar to processes in
    - In your case, `0x0` means:
      - Either the condition variable hasn’t been properly initialized.
      - Or, it is waiting for a generic synchronization object not tied to a specific address.
+
+
+
+### 2. QNX Memory 
+
+RAM, is a shared resource that every process requires like the CPU. All processes compete with each other for use of memory. The operating system ensures that all processes get access to RAM without conflicts. This involves dividing the available memory among the processes.
+
+- **Physical Memory**
+
+  - The total amount of RAM available in the system.
+
+  - Physical memory is divided into pages, typically 4 KB in size, which can be allocated to processes as needed.
+
+- **Virtual Memory**
+
+  - Each process has its own private virtual address space.
+
+  - The virtual address space is split into:
+    - **User space:** For application code, heap, stack, and libraries.
+    - **Kernel space:** Reserved for system-level operations.
+
+- **Shared Memory**
+
+  - QNX supports **shared memory** to allow processes to communicate efficiently by accessing the same memory region.
+
+  - Commonly used for **Inter-Process Communication (IPC)**.
+
+- **Memory Pools**
+  - QNX divides memory into pools:
+    - **System Memory Pool:** Used by the kernel and system services.
+    - **User Memory Pool:** Allocated for user processes.
+
+**2.1. Memory Management in QNX**
+
+- **Virtual Memory Manager (VMM):** QNX uses a Virtual Memory Manager to handle memory allocation and manage RAM effectively. The VMM ensures that each process gets its own isolated memory space and can interact with memory safely.
+
+- **Procnto-smp-instr Process:**
+
+  This is a special process in QNX that combines the **microkernel** with several essential services, including the virtual memory manager.
+
+  
+
+**2.2. How Memory Management Works**
+
+1. **Virtual Memory:** Each process is given a **virtual address space**, which abstracts the physical RAM. This allows processes to behave as though they have their own dedicated memory.
+2. **Memory Isolation:** Processes are isolated from one another, meaning one process cannot accidentally overwrite another's memory. This isolation is critical for system stability and security.
+3. **Dynamic Allocation:** The VMM allocates and deallocates memory as processes start, run, and terminate. This ensures that memory is used efficiently.
+4. **Shared Resources:** For shared resources or communication, the system allows controlled sharing of memory regions between processes using mechanisms like shared memory or IPC (Inter-Process Communication).
+
+### 
+
+**2.3. Memory Issues**
+
+Running out of memory is a critical issue in any system, including QNX on a Raspberry Pi, where hardware resources are limited. This can occur due to misbehaving processes, poor system design, or a failure to account for the memory requirements of the software. So, there are two important questions
+
+**2.3.1. How much memory does my system use ?**
+
+We can run `pidin info`  in the QNX terminal to know
+
+```bash
+pidin info
+```
+
+![image-20250118171104415](README.assets/image-20250118171104415.png)
+
+>**1. `CPU:AARCH64 Release:8.0.0 FreeMem:7696MB/8128MB BootTime:Jan 18 14:15:51 UTC 2025`**
+>
+>- **`CPU:AARCH64`**
+>  - Indicates the CPU architecture. `AARCH64` refers to the 64-bit ARM architecture, which is common for Raspberry Pi 4 and similar devices.
+>- **`Release:8.0.0`**
+>  - Refers to the version of the QNX operating system running on the device, in this case, version 8.0.0.
+>- **`FreeMem:7696MB/8128MB`**
+>  - Displays the amount of free and total memory available:
+>    - The system has 8GB of RAM (depending on RPI 4 model, yours
+>      may have  2GB, 4GB or 8GB),
+>    - **FreeMem:** 7696 MB of RAM is currently available.
+>    - **Total Memory:** 8128 MB of total RAM is present in the system.
+>    - This shows that the system is using approximately **432 MB of RAM**.
+>- **`BootTime:Jan 18 14:15:51 UTC 2025`**
+>  - Indicates the date and time when the system was booted.
+>
+>-------------------
+>
+>**2. `Processes: 40, Threads: 234`**
+>
+>- **`Processes: 40`**
+>  - The number of processes currently running on the system. Processes are independent programs or tasks.
+>- **`Threads: 234`**
+>  - The total number of threads across all running processes. Threads are smaller execution units within processes, and each process can have multiple threads performing different tasks concurrently.
+>
+>---------------------------------------------------------------------------------------
+>
+>**3. `Processor1: 1091555459 Cortex-A72 1500MHz FPU`**
+>
+>- **`Processor1`**
+>  - Refers to the first processor core (Core 1).
+>- **`1091555459`**
+>  - This is likely a unique identifier or processor ID used internally by QNX or ARM to identify the processor.
+>- **`Cortex-A72`**
+>  - Indicates the specific processor model. Cortex-A72 is a high-performance ARM processor used in the Raspberry Pi 4.
+>- **`1500MHz`**
+>  - The clock speed of the processor, which is 1500 MHz (1.5 GHz). This determines how fast the processor can execute instructions.
+>- **`FPU`**
+>  - Refers to the presence of a **Floating Point Unit**, which is a specialized processor for handling arithmetic calculations involving floating-point numbers. This is important for performance in tasks like scientific calculations, graphics processing, and signal processing.
+>
+>----------------------
+>
+>**4. Similar Lines for `Processor2`, `Processor3`, and `Processor4`**
+>
+>- The same details are repeated for the other three cores of the Raspberry Pi 4's quad-core ARM Cortex-A72 CPU. Each core runs independently at the same clock speed (1500 MHz) and has an FPU for floating-point operations.
+
+------------------
+
+> **Note That :** The QNX memory manager **may not have access to all of the RAM on a board** if certain factors limit its availability. 
+>
+> **Factors Affecting Available RAM** :
+>
+> 1. **Boot-Time Services**
+>    - Some system services or configurations at boot time can reserve portions of RAM for their exclusive use.
+>    - For example:
+>      - **Firmware/BIOS:** Some RAM might be reserved for hardware initialization or runtime services.
+>      - **Bootloader:** Certain memory regions may be reserved by the bootloader for its operations or passed to the OS as restricted.
+> 2. **Hypervisors**
+>    - If QNX is running as a guest OS under a hypervisor (e.g., in a virtualized environment), the hypervisor might allocate only a subset of the physical RAM to QNX.
+>    - This allocation is typically defined by the hypervisor configuration and may be shared with other virtual machines.
+> 3. **Hardware Reservations**
+>    - Some hardware devices reserve portions of RAM for their own use.
+>      - Examples:
+>        - GPU: Graphics processing units may allocate memory for video buffers.
+>        - DMA Buffers: Devices using Direct Memory Access (DMA) might lock certain RAM regions.
+>      - On boards like the Raspberry Pi, part of the RAM is often reserved for the GPU by default.
+> 4. **System Configuration and Memory Maps**
+>    - The memory map provided to the QNX system at boot time defines which portions of RAM are available for use.
+>    - If parts of RAM are marked as **reserved** or excluded in the memory map, the QNX memory manager will not use them.
+> 5. **OS-Level Constraints**
+>    - QNX may exclude certain RAM regions for its own internal purposes:
+>      - **Reserved Memory Pools:** Memory reserved for specific applications or kernel services.
+>      - **Real-Time Constraints:** Memory may be preallocated or locked for real-time applications to guarantee predictability.
+> 6. **Defective or Faulty Memory**
+>    - If a portion of RAM is identified as defective (e.g., during power-on self-test or diagnostics), it may be excluded to prevent system instability.
+
+- Also, you can see this file `/proc/vm/stats pseudo-file` but with root permission
+
+```bash
+su -c cat /proc/vm/stats
+```
+
+![image-20250118180402852](README.assets/image-20250118180402852.png)
+
+>**1. `vm_aspace=41`**
+>
+>- The number of **address spaces** currently in use.
+>- Number of address spaces of active processes.
+>
+>- Address spaces are isolated memory regions allocated to different processes or entities.
+>
+>**2. `vm_object=77`**
+>
+>- The total number of **memory objects** in use.
+>- A memory object represents a region of memory allocated to a process or used for shared memory, files, or anonymous memory.
+>
+>**3. `vm_shmem=79`**
+>
+>- The number of **shared memory objects** in use.
+>- Shared memory is a mechanism for processes to share data efficiently.
+>
+>**4. `vm_tymem=6`**
+>
+>- The number of **typed memory regions** in use.
+>- Typed memory is reserved for special uses like hardware access or specific real-time applications.
+>
+>**5. `vm_physobj=242`**
+>
+>- The total number of **physical memory objects** in use.
+>- These objects directly map to physical memory pages and may represent allocated memory or buffers.
+>
+>**6. `vmem_avail=0x1e106a (7.515GB)`**
+>
+>- The total available virtual memory for the system.
+>- **7.515 GB** of virtual memory is currently free (available).
+>
+>**7. `pmem_xdom_page=0`**
+>
+>- The number of **cross-domain pages** in use.
+>- Cross-domain pages are memory pages shared between different security or isolation domains. A value of `0` indicates none are in use.
+>
+>**8. `pmem_xdom_contig=0`**
+>
+>- The number of **cross-domain contiguous memory allocations**.
+>
+>- Contiguous memory is required for certain hardware operations, and this value shows none are currently allocated.
+>
+>  >**Applications Requiring Contiguous Memory** :
+>  >
+>  >1. **Hardware Drivers**
+>  >   - **Device Buffers:** Many hardware devices (e.g., GPUs, network cards, and video capture devices) require contiguous memory for DMA (Direct Memory Access) operations.
+>  >   - **Reason:** DMA engines access physical memory directly, and they cannot handle fragmented memory because fragmented memory would require additional address translation logic.
+>  >2. **Multimedia Applications**
+>  >   - **Video Decoding/Encoding:** Applications that process video streams often require large contiguous memory buffers to store frames.
+>  >   - **Reason:** Efficient frame processing and manipulation require linear access patterns, which fragmented memory cannot provide.
+>  >3. **Real-Time Systems**
+>  >   - **Low Latency Requirements:** Real-time systems often require deterministic memory access times, which contiguous memory guarantees.
+>  >   - **Reason:** Fragmented memory introduces overhead due to additional memory lookups or page table accesses, which could disrupt timing constraints.
+>  >4. **Embedded Systems**
+>  >   - **Tightly Coupled Memory (TCM):** Many embedded systems use TCM or other specialized memory regions that are inherently contiguous.
+>  >   - **Reason:** These memory regions are optimized for predictable, low-latency access.
+>  >5. **Graphics Applications**
+>  >   - **Frame Buffers:** Graphics systems require contiguous memory for frame buffers to ensure smooth rendering and display.
+>  >   - **Reason:** Fragmentation would disrupt sequential access patterns needed for rendering.
+>  >6. **High-Performance Computing (HPC)**
+>  >   - **Large Data Buffers:** HPC applications often allocate massive arrays or data buffers in memory.
+>  >   - **Reason:** Contiguous memory ensures data locality and avoids cache misses or inefficiencies caused by scattered memory.
+>  >
+>  >
+>
+>**9. `fd_pend_close=0`**
+>
+>- The number of **pending file descriptor closures**.
+>- No file descriptors are awaiting closure.
+>
+>**10. `fd_free_objs=1`**
+>
+>- The number of **free file descriptor objects** available for allocation.
+>- Only one free file descriptor object remains.
+>
+>**11. `kmem_vavail=0xff6d80 (63.856GB)`**
+>
+>- The amount of **virtual kernel memory available** for allocation.
+>- **63.856 GB** of kernel memory is free, which is much larger than the physical memory due to virtual memory techniques.
+>
+>**12. `page_count=0x1fc000 (7.937GB)`**
+>
+>- The total number of physical memory pages in the system.
+>- `page_count` show to the memory manager How many 4K RAM pages available in the system
+>- The system has **7.937 GB** of physical memory available.
+>
+>**13. `anon_count=0x0 (0.000kB)`**
+>
+>- The amount of **anonymous memory** in use.
+>- Anonymous memory is not associated with a file or shared memory and is currently **0 KB**.
+>
+>**14. `cache_object=0x23e4 (35.890MB)`**
+>
+>- The amount of memory used for **caching objects**.
+>- The system is using **35.890 MB** of memory for cache.
+>
+>**15. `cache_shmem=0x590 (5.562MB)`**
+>
+>- The amount of memory used for caching **shared memory objects**.
+>- The system uses **5.562 MB** for shared memory caching.
+>
+>**16. `pages_allocated=0x483a (72.226MB)`**
+>
+>- The number of **allocated memory pages**.
+>- **72.226 MB** of physical memory is currently allocated to processes.
+>
+>**17. `pages_mapped=0x0 (0.000kB)`**
+>
+>- The number of **mapped memory pages**.
+>- Mapped pages are those linked to a process's virtual address space. Here, no pages are currently mapped.
+>
+>**18. `pages_free=0x1eba74 (7.681GB)`**
+>
+>- The number of **free memory pages**.
+>- **7.681 GB** of physical memory is currently free and available for allocation.
+>
+>**19. `pages_kernel=0x6624 (102.140MB)`**
+>
+>- The amount of memory allocated for **kernel usage**.
+>- The kernel is using **102.140 MB** of memory.
+>
+>**20. `pages_reserved=0x572e (87.179MB)`**
+>
+>- The amount of memory **reserved** for system use or unavailable for general allocation.
+>- **87.179 MB** is reserved for special purposes like DMA or critical kernel operations.
+>
+>-------------------------------------------------
+>
+>- **Memory Usage:** The system has **7.515 GB of virtual memory** and **7.681 GB of physical memory** available, indicating efficient memory utilization.
+>- **Kernel Memory:** The kernel uses **102 MB**, while **87 MB is reserved**, leaving most of the physical memory free for user processes.
+>- **Cache Usage:** Caching uses a modest amount of memory, with **35 MB** for objects and **5 MB** for shared memory.
+
+
+
+- To see more information about physical RAM 
+
+```
+pidin syspage=asinfo
+```
+
+This command fetches and displays memory-related information from the **system page** (`syspage`) of the QNX operating system, specifically the **Address Space Information (asinfo)** section.
+
+### ![image-20250118185327963](README.assets/image-20250118185327963.png)
+
+>1. **Command:**
+>
+>   - `pidin`: Tool to display system information in QNX.
+>   - `syspage=asinfo`: Specifies that the information about the `asinfo` (Address Space Information) section of the system page should be displayed.
+>
+>2. **Output Breakdown:**
+>
+>   **Header Information:**
+>
+>   ```
+>   Header size=0x000000f0, Total Size=0x000010d8, Version=2.0, #Cpu=4, Type=4353
+>   ```
+>
+>   - **Header size**: `0x000000f0` (240 bytes) is the size of the header for the syspage.
+>   - **Total size**: `0x000010d8` (4312 bytes) is the total size of the syspage, including all sections.
+>   - **Version**: The syspage version is `2.0`.
+>   - **#Cpu**: There are 4 CPUs (cores) in the system.
+>   - **Type**: `4353` is a code indicating the architecture type (e.g., ARM, x86).
+>
+>   **Section Information:**
+>
+>   ```
+>   Section:asinfo offset:0x00000e28 size:0x000001b0 elsize:0x00000018
+>   ```
+>
+>   - **Section**: This is the `asinfo` section.
+>   - **Offset**: `0x00000e28` is the starting byte offset of the `asinfo` section in the syspage.
+>   - **Size**: `0x000001b0` (432 bytes) is the total size of the `asinfo` section.
+>   - **Element Size**: Each entry in the `asinfo` table is `0x00000018` (24 bytes).
+>
+>   **Memory Entries:**
+>
+>   Each entry in the `asinfo` table represents a range of memory with a specific type or usage. The columns are:
+>
+>   ```
+>   [Range Start]-[Range End] o:[Parent Offset] [Name/Type]
+>   ```
+>
+>   - **Range Start** and **Range End**: The physical memory address range for this entry.
+>   - **o:[Parent Offset]**: Offset in the `asinfo` section pointing to the parent memory entry. For example, `o:ffff` means it has no parent.
+>   - **Name/Type**: Description of the memory segment (e.g., `/memory`, `/memory/ram`).
+>
+>   #### **Key Entries in Detail:**
+>
+>   - `0000) 0000000000000000-00000fffffffffff o:ffff /memory`:
+>     - Represents all addressable memory.
+>   - `0018) 0000000000000000-00000000ffffffff o:0000 /memory/below4G`:
+>     - Subsection for memory below the 4 GB boundary.
+>   - `0030) 0000000000000000-00000000fbffffff o:0018 /memory/below4G/ram`:
+>     - RAM below 4 GB, up to `0xfbffffff`.
+>   - `0060) 000000003b400000-000000003fffffff o:0030 /memory/below4G/ram/vcram`:
+>     - A segment of RAM allocated as video RAM (VRAM) between `0x3b400000` and `0x3fffffff`.
+>   - `0078) 0000000000000000-000000003b3fffff o:0030 /memory/below4G/ram/below1G`:
+>     - RAM below the 1 GB boundary.
+>   - `0120) 0000000000001000-000000000000cfff o:0078 /memory/below4G/ram/below1G/sysram`:
+>     - A portion of RAM below 1 GB, marked as system RAM.
+>   - `0180) 0000000040000000-00000000fbffffff o:0030 /memory/below4G/ram/sysram`:
+>     - System RAM (accessible below 4 GB).
+>   - `0198) 0000000100000000-00000001fa083fff o:0048 /memory/ram/sysram`:
+>     - System RAM accessible in the higher memory range (`0x0100000000` to `0x01fa083fff`).
+>
+>-------------------------------
+>
+>- o (offset): Tracks hierarchy among memory regions. For instance:
+>  - `/memory/below4G` is a child of `/memory`.
+>  - `/memory/below4G/ram` is a child of `/memory/below4G`.
+>- Memory Descriptors:
+>  - Descriptions like `/memory/ram` and `/memory/startup` indicate usage (e.g., system startup code, RAM for applications, or devices).
+
+
+
+All entries that end with **sysram** are available for the memory manager to use when
+servicing normal allocation requests from processes. Entries that are part of RAM but
+outside the **sysram** ranges can be allocated using a special interface known as **typed
+memory** .
+
+**2.3.2. how much does a process contribute to total memory use in the system ?**
+
+To answer this question, we will use the `mmap_demo` program that is included with the Raspberry Pi image. Start this program in the background, so that it remains alive while we examine its memory usage.
+
+```bash
+mmap_demo &
+```
+
