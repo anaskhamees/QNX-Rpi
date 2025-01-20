@@ -872,3 +872,9 @@ ls /dev/gpio
    - Prevents accidental or malicious interference between processes using GPIOs.
 4. **Flexibility**:
    - The resource manager can enforce policies, like only allowing specific processes to access certain pins.
+
+
+
+
+https://github.com/user-attachments/assets/58c2e5c5-4819-4786-8428-2da3a1c85871
+
