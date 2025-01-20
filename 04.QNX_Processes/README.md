@@ -632,11 +632,243 @@ servicing normal allocation requests from processes. Entries that are part of RA
 outside the **sysram** ranges can be allocated using a special interface known as **typed
 memory** .
 
-**2.3.2. how much does a process contribute to total memory use in the system ?**
+----------------------------------------------
 
-To answer this question, we will use the `mmap_demo` program that is included with the Raspberry Pi image. Start this program in the background, so that it remains alive while we examine its memory usage.
+### 3. Resource Managers
+
+In the QNX operating system, **Resource Managers** are special processes that act as intermediaries between client applications and hardware or other system resources. They register a path in the filesystem (a virtual namespace called the "path space") and handle all requests related to that path.
+
+**3.1. Path Registration**:
+
+- A resource manager registers one or more paths in the system, like `/dev/gpio`.
+- All requests to access files or directories under this path are routed to the resource manager.
+
+**3.2. Message Handling**:
+
+- The resource manager processes standard file operations such as `read`, `write`, `stat`, and `close`.
+- It can also handle custom messages specific to the resource it manages.
+
+**3.3. Examples**:
+
+- A **file system** is a resource manager that manages files and directories.
+- The **GPIO** resource manager (`rpi_gpio`) manages the GPIO hardware of the Raspberry Pi.
+
+**3.4. The GPIO Resource Manager (`rpi_gpio`)** :
+
+- The `rpi_gpio` process is a resource manager for the **40-pin GPIO header** on the Raspberry Pi 4.
+- Its job is to:
+  - Map the GPIO hardware registers into memory (using `mmap()`).
+  - Control and manage access to the GPIO pins (input/output).
+  - Handle requests from other processes to interact with GPIO pins (e.g., turning a pin on/off).
+
+**3.5. Why Use a Resource Manager for GPIO?**
+
+- To ensure safe and exclusive access:
+  - Without the resource manager, multiple processes could access the GPIO hardware directly, leading to conflicts, accidental misconfigurations, or malicious interference.
+- With `rpi_gpio`, only the resource manager accesses the hardware registers, and other processes send requests to it, ensuring controlled access.
+
+**3.6. How to View the `rpi_gpio` Process**
+
+Using the `pidin` command, you can see the `rpi_gpio` process running:
 
 ```bash
-mmap_demo &
+ pidin -p rpi_gpio
 ```
 
+![image-20250120195723504](README.assets/image-20250120195723504.png)
+
+> **What Does This Output Mean?**
+>
+> - **`pid`**: The process ID of the `rpi_gpio` resource manager is `823323`.
+> - **`tid`**: Thread IDs for this process.
+>   - Thread `1`: Handles incoming requests from clients (`RECEIVE` state).
+>   - Thread `2`: Handles hardware interrupts (`INTR` state).
+> - **`prio`**: The priority of each thread.
+>   - Thread `1`: Priority `10r` (relatively low, handles general requests).
+>   - Thread `2`: Priority `200r` (higher priority to respond to hardware events quickly).
+> - **`STATE`**: Indicates the current state of the thread.
+>   - `RECEIVE`: Waiting for a message from a client process.
+>   - `INTR`: Responding to an interrupt.
+
+
+
+**3.7. How Does `rpi_gpio` Manage GPIO Pins**
+
+The rpi_gpio resource manager registers the path /dev/gpio (though it can be con-
+figured to register a different path, if desired, via a command-line argument). Under
+this path it creates a file for each GPIO pin, with a name matching that of the GPIO
+number, as well as a single msg file.
+
+```bash
+ls /dev/gpio
+```
+
+![image-20250120200602947](README.assets/image-20250120200602947.png)
+
+**3.8. Turn any GPIO ON/OFF**
+
+- GPIO Header in RPI 4 
+
+  ![image-20250120201251534](README.assets/image-20250120201251534.png)
+
+- Configure a **GPIO** as Output pin
+
+  ```bash
+  echo out > /dev/gpio/<GPIO_Number>
+  ```
+
+  ```echo
+  echo out > /dev/gpio/2
+  ```
+
+  >**I use GPIO 2 (pin 3 in the digram)**
+
+- Turn ON the GPIO 2 
+
+  ```bash
+  echo on > /dev/gpio/2
+  ```
+
+- Turn OFF the GPIO 2
+
+  ```bash
+  echo off > /dev/gpio/2
+  ```
+
+  
+
+![image-20250120201607353](README.assets/image-20250120201607353.png)
+
+
+
+>**What Happens Internally** ?
+>
+>**1. Opening the File `/dev/gpio/2`**
+>
+>- The command `echo on > /dev/gpio/2` :
+>  - Causes the shell to **open** the file `/dev/gpio/2` in write mode.
+>  - This establishes a connection to the `rpi_gpio` resource manager through a **file descriptor**.
+>
+>**2. What Is a File Descriptor?**
+>
+>- A **file descriptor** is a small, non-negative integer used by the operating system to refer to an open file or resource.
+>- The shell uses a file descriptor to communicate with `/dev/gpio/2` :
+>  - Standard input (`stdin`): File descriptor 0.
+>  - Standard output (`stdout`): File descriptor 1.
+>  - Standard error (`stderr`): File descriptor 2.
+>
+>**For example:**
+>
+>```
+>echo "message" > /dev/gpio/2
+>```
+>
+>- Redirects the `stdout` (file descriptor 1) of the `echo` command to the GPIO file `/dev/gpio/2`.
+>
+>--------------------------
+>
+>**3. The Role of `echo` and `write()`**
+>
+>- The `echo` command outputs a string (`on`, `off`, etc.).
+>- The shell redirects this output to the resource manager handling `/dev/gpio/16`.
+>- Internally, the `echo` command calls the `write()` system call to send the string as a message to the resource manager.
+>
+>**4. Message Communication**
+>
+>- The `write()`system call sends a `_IO_WRITE` message to the resource manager.
+>  - `_IO_WRITE` is a message type defined by QNX for write operations.
+>  - The message payload includes:
+>    - The string being written (`on`, `off`, `out`, etc.).
+>    - Any other metadata needed for the resource manager to process the request.
+>
+>**5. Handling the `_IO_WRITE` Message**
+>
+>- The `rpi_gpio` resource manager receives the `_IO_WRITE` message from the shell.
+>- It:
+>  1. Identifies the file (`/dev/gpio/2`) associated with GPIO 2.
+>  2. Parses the command (`on`, `off`, or `out`) from the message payload.
+>  3. Updates the GPIO hardware registers:
+>     - For `on`: Sets the GPIO pin state to HIGH.
+>     - For `off`: Sets the GPIO pin state to LOW.
+>     - For `out`: Configures the GPIO pin as an output.
+>
+>--------------------------------
+>
+>**Example Flow: `echo on > /dev/gpio/2`**
+>
+>1. **Shell Opens File**:
+>   - The shell executes the `echo` command, opening `/dev/gpio/2` for writing.
+>   - This creates a **file descriptor** connected to the resource manager.
+>2. **Shell Redirects Output**:
+>   - The `echo` command sends the string `on` to the file descriptor.
+>3. **System Call**:
+>   - The `echo` command internally invokes the `write()` system call on the file descriptor.
+>   - The `write()` system call sends a `_IO_WRITE` message to the `rpi_gpio` resource manager.
+>4. **Resource Manager Processing**:
+>   - The `rpi_gpio` resource manager:
+>     - Receives the `_IO_WRITE` message.
+>     - Recognizes that it pertains to GPIO 2.
+>     - Parses the string `on`.
+>     - Updates the GPIO hardware register for GPIO Number 2 to set it to HIGH.
+>5. **Hardware Update**:
+>   - The GPIO 2 is now HIGH, meaning it outputs voltage.
+>
+>-----------------------------------
+>
+>**Ad-hoc Messages and the `msg` File**
+>
+>- **Ad-hoc messages**:
+>
+>  - Instead of using text commands (`on`, `off`, etc.), programs can send structured binary messages to the `msg` file under `/dev/gpio`.
+>  - Ad-hoc messages are:
+>    - Easier to parse.
+>    - Less error-prone (since they avoid string parsing).
+>  - The message structure is defined in a header file used by client programs.
+>
+>- Example:
+>
+>  - A program could send a binary message to 
+>
+>    ```
+>    /dev/gpio/msg
+>    ```
+>
+>     with:
+>
+>    - Pin number.
+>    - Operation (e.g., set output, turn on/off).
+>    - Any additional parameters.
+>
+>-----------------------------
+
+
+
+**3.9. How Does the Resource Manager Work?**
+
+1. **Memory Mapping:**
+
+   - The resource manager uses `mmap()` to map the hardware registers controlling the GPIO pins into its process memory.
+
+     >`mmap()` is a system call in Unix-like operating systems, including QNX, that allows processes to map files or devices into their address space. By mapping, it means that a region of a file or device or hardware is associated with a region of a process's virtual memory. This enables efficient access to files or device memory by treating them as if they were in memory.
+
+   - This allows it to read/write directly to the GPIO registers without exposing them to other processes.
+
+2. **Handling Client Requests:**
+
+   - When a client process sends a `write` request to `/dev/gpio/2`, the resource manager turns GPIO 2 ON or OFF.
+   - Similarly, `read` requests can retrieve the current state of the pin.
+
+3. **Custom Messages:**
+
+   - The `msg` file allows clients to send special requests to the resource manager, such as configuring a pin as input or output, or toggling advanced settings.
+
+**3.10. Advantages of Using a Resource Manager**
+
+1. **Exclusive Access**:
+   - Only the resource manager interacts with hardware registers, preventing conflicts or damage.
+2. **Simplified Interface**:
+   - Applications interact with GPIOs using standard file operations (`read`, `write`, etc.), which are easier to use than direct hardware access.
+3. **Safety and Security**:
+   - Prevents accidental or malicious interference between processes using GPIOs.
+4. **Flexibility**:
+   - The resource manager can enforce policies, like only allowing specific processes to access certain pins.
