@@ -5,7 +5,7 @@ operating systems. There are many Options for Storing Files on the Raspberry Pi 
 
 - **Write Code Directly on the Raspberry Pi** using **Vim** or **nano** text editor.
 
-- **Use SSHFS (Secure Shell File System)**   [**I will use this Method**] .
+- **Use SSHFS (Secure Shell File System)**   [**I will use this Method**].
 
   >**SSHFS** allows you to mount a directory from the Raspberry Pi onto your local computer. When this is done, the Raspberry Pi's directory appears as a local directory on your computer, enabling you to work on files directly as if they were local.
   >
@@ -128,6 +128,28 @@ python /python/led.py
 
 
 
+<<<<<<< HEAD
 
 https://github.com/user-attachments/assets/36f37ad0-d521-4637-8eee-7627bb4f6390
+=======
+### 3. BushButton App
+
+```python
+import rpi_gpio as GPIO
+import time
+GPIO.setup(2,GPIO.OUT)
+GPIO.output(2,GPIO.LOW)
+
+GPIO.setup(3,GPIO.IN,GPIO.PUD_UP)
+
+while True:
+    if GPIO.input(3)==GPIO.LOW:
+        GPIO.output(2,GPIO.HIGH)
+    else:
+        GPIO.output(2,GPIO.LOW)
+        
+    time.sleep(0.01)
+    	
+```
+>>>>>>> b7074cf (RealTimeC-Apps)
 
